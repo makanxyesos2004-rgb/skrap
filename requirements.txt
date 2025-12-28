@@ -1,0 +1,149 @@
+# SoundCloud Music App - Зависимости проекта
+# 
+# Это Node.js/TypeScript проект. Для установки зависимостей используйте:
+# pnpm install
+# 
+# Или через npm:
+# npm install
+#
+# ============================================
+# ОСНОВНЫЕ ЗАВИСИМОСТИ
+# ============================================
+
+# Backend Framework
+express>=4.21.2
+mysql2>=3.15.0
+
+# Database ORM
+drizzle-orm>=0.44.5
+
+# API Client
+axios>=1.12.0
+
+# Authentication & Security
+jose>=6.1.0
+cookie>=1.0.2
+nanoid>=5.1.5
+
+# Validation
+zod>=4.1.12
+
+# tRPC (Type-safe APIs)
+@trpc/server>=11.6.0
+@trpc/client>=11.6.0
+@trpc/react-query>=11.6.0
+
+# React Framework
+react>=19.2.1
+react-dom>=19.2.1
+
+# State Management & Data Fetching
+@tanstack/react-query>=5.90.2
+
+# Routing
+wouter>=3.3.5
+
+# UI Components (Radix UI)
+@radix-ui/react-accordion>=1.2.12
+@radix-ui/react-alert-dialog>=1.1.15
+@radix-ui/react-avatar>=1.1.10
+@radix-ui/react-checkbox>=1.3.3
+@radix-ui/react-dialog>=1.1.15
+@radix-ui/react-dropdown-menu>=2.1.16
+@radix-ui/react-label>=2.1.7
+@radix-ui/react-popover>=1.1.15
+@radix-ui/react-progress>=1.1.7
+@radix-ui/react-radio-group>=1.3.8
+@radix-ui/react-scroll-area>=1.2.10
+@radix-ui/react-select>=2.2.6
+@radix-ui/react-separator>=1.1.7
+@radix-ui/react-slider>=1.3.6
+@radix-ui/react-slot>=1.2.3
+@radix-ui/react-switch>=1.2.6
+@radix-ui/react-tabs>=1.1.13
+@radix-ui/react-toggle>=1.1.10
+@radix-ui/react-tooltip>=1.2.8
+
+# UI Utilities
+class-variance-authority>=0.7.1
+clsx>=2.1.1
+tailwind-merge>=3.3.1
+lucide-react>=0.453.0
+
+# Forms
+react-hook-form>=7.64.0
+@hookform/resolvers>=5.2.2
+
+# Notifications
+sonner>=2.0.7
+
+# Drawer Component
+vaul>=1.1.2
+
+# Date Utilities
+date-fns>=4.1.0
+
+# Serialization
+superjson>=1.13.3
+
+# Theme
+next-themes>=0.4.6
+
+# Charts
+recharts>=2.15.2
+
+# ============================================
+# DEV ЗАВИСИМОСТИ
+# ============================================
+
+# TypeScript
+typescript>=5.9.3
+@types/node>=24.7.0
+@types/react>=19.2.1
+@types/react-dom>=19.2.1
+@types/express>=4.17.21
+
+# Build Tools
+vite>=7.1.7
+@vitejs/plugin-react>=5.0.4
+esbuild>=0.25.0
+tsx>=4.19.1
+
+# CSS Framework
+tailwindcss>=4.1.14
+@tailwindcss/vite>=4.1.3
+tailwindcss-animate>=1.0.7
+tw-animate-css>=1.4.0
+
+# Database Migrations
+drizzle-kit>=0.31.4
+
+# Testing
+vitest>=2.1.4
+
+# Code Quality
+prettier>=3.6.2
+
+# Environment
+cross-env>=10.1.0
+dotenv>=17.2.2
+
+# ============================================
+# СИСТЕМНЫЕ ТРЕБОВАНИЯ
+# ============================================
+
+# Node.js >= 18.0.0
+# pnpm >= 8.0.0 (рекомендуется) или npm >= 9.0.0
+# MySQL >= 8.0 или TiDB
+
+# ============================================
+# УСТАНОВКА
+# ============================================
+
+# 1. Установите Node.js с https://nodejs.org/
+# 2. Установите pnpm: npm install -g pnpm
+# 3. Установите зависимости: pnpm install
+# 4. Настройте переменные окружения (см. .env.example)
+# 5. Запустите миграции: pnpm db:push
+# 6. Запустите dev сервер: pnpm dev
+
