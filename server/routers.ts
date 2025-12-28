@@ -91,6 +91,26 @@ export const appRouter = router({
         return await soundcloud.getStreamUrl(input.trackId);
       }),
 
+    // БЫСТРЫЙ эндпоинт - пропускает getTrack, экономит ~500ms
+    getStreamUrlFast: publicProcedure
+      .input(z.object({
+        trackId: z.number(),
+        transcodings: z.array(z.object({
+          url: z.string(),
+          preset: z.string(),
+          duration: z.number(),
+          snipped: z.boolean(),
+          format: z.object({
+            protocol: z.string(),
+            mime_type: z.string(),
+          }),
+          quality: z.string(),
+        })),
+      }))
+      .query(async ({ input }) => {
+        return await soundcloud.getStreamUrlFast(input.trackId, input.transcodings);
+      }),
+
     related: publicProcedure
       .input(z.object({
         trackId: z.number(),
@@ -201,6 +221,31 @@ export const appRouter = router({
       .input(z.object({ limit: z.number().min(1).max(100).default(50) }))
       .query(async ({ ctx, input }) => {
         return await db.getUserListeningHistory(ctx.user.id, input.limit);
+      }),
+  }),
+
+  analytics: router({
+    trackEvent: publicProcedure
+      .input(z.object({
+        event: z.string().min(1).max(64),
+        sessionId: z.string().min(1).max(64).optional(),
+        page: z.string().min(1).max(64).optional(),
+        trackSoundcloudId: z.string().min(1).max(255).optional(),
+        trackTitle: z.string().min(1).max(512).optional(),
+        meta: z.unknown().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const metaStr = input.meta === undefined ? null : JSON.stringify(input.meta).slice(0, 8000);
+        await db.addPlayerEvent({
+          userId: ctx.user?.id ?? null,
+          sessionId: input.sessionId ?? null,
+          event: input.event,
+          page: input.page ?? null,
+          trackSoundcloudId: input.trackSoundcloudId ?? null,
+          trackTitle: input.trackTitle ?? null,
+          meta: metaStr,
+        });
+        return { success: true } as const;
       }),
   }),
 

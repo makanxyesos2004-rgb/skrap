@@ -1,22 +1,61 @@
 import axios, { AxiosError } from 'axios';
+import https from "https";
 
 // ИСПОЛЬЗУЕМ V2 API КАК В PYTHON СКРИПТЕ
 const SOUNDCLOUD_API_BASE = 'https://api-v2.soundcloud.com';
 const SOUNDCLOUD_CLIENT_ID = 'dH1Xed1fpITYonugor6sw39jvdq58M3h';
 
+// Keep-alive агент для ускорения повторных запросов (меньше TLS/handshake)
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 50,
+  keepAliveMsecs: 10_000,
+});
+
 const soundcloudClient = axios.create({
   baseURL: SOUNDCLOUD_API_BASE,
-  timeout: 30000, // Увеличен таймаут до 30 секунд
+  timeout: 8000, // Быстрый таймаут 8 секунд
+  httpsAgent,
   headers: {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   },
 });
 
-// Retry функция
+const resolveClient = axios.create({
+  timeout: 5000,
+  httpsAgent,
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  },
+});
+
+// Серверный кэш stream URL (TTL 30 минут)
+const streamUrlServerCache = new Map<number, { url: string; expires: number }>();
+const STREAM_URL_TTL = 30 * 60 * 1000;
+
+function getCachedStreamUrl(trackId: number): string | null {
+  const cached = streamUrlServerCache.get(trackId);
+  if (cached && cached.expires > Date.now()) {
+    return cached.url;
+  }
+  streamUrlServerCache.delete(trackId);
+  return null;
+}
+
+function setCachedStreamUrl(trackId: number, url: string): void {
+  if (streamUrlServerCache.size > 500) {
+    const now = Date.now();
+    streamUrlServerCache.forEach((value, key) => {
+      if (value.expires < now) streamUrlServerCache.delete(key);
+    });
+  }
+  streamUrlServerCache.set(trackId, { url, expires: Date.now() + STREAM_URL_TTL });
+}
+
+// Быстрый retry - только 2 попытки без задержки
 async function withRetry<T>(
   fn: () => Promise<T>,
-  retries: number = 3,
-  delay: number = 1000
+  retries: number = 2
 ): Promise<T> {
   let lastError: Error | null = null;
   
@@ -25,9 +64,6 @@ async function withRetry<T>(
       return await fn();
     } catch (error) {
       lastError = error as Error;
-      if (i < retries - 1) {
-        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-      }
     }
   }
   
@@ -184,9 +220,54 @@ export async function searchPlaylists(query: string, limit: number = 20): Promis
 }
 
 /**
- * Получение прямой ссылки на MP3
+ * Быстрое получение stream URL (только resolve, без getTrack)
+ */
+async function resolveTranscodingUrl(transcodingUrl: string): Promise<string> {
+  const response = await resolveClient.get(`${transcodingUrl}?client_id=${SOUNDCLOUD_CLIENT_ID}`);
+  
+  if (response.data && response.data.url) {
+    return response.data.url;
+  }
+  
+  throw new Error('Failed to resolve stream URL');
+}
+
+/**
+ * БЫСТРОЕ получение stream URL когда transcodings уже известны
+ * Пропускает запрос getTrack - экономит ~500ms
+ */
+export async function getStreamUrlFast(trackId: number, transcodings: SoundCloudTranscoding[]): Promise<string> {
+  // Проверяем серверный кэш - мгновенный ответ
+  const cached = getCachedStreamUrl(trackId);
+  if (cached) return cached;
+
+  // Ищем progressive поток (mp3) - грузится быстрее
+  let streamApiUrl = transcodings.find(
+    t => t.format.protocol === 'progressive'
+  )?.url;
+
+  if (!streamApiUrl && transcodings.length > 0) {
+    streamApiUrl = transcodings[0].url;
+  }
+
+  if (!streamApiUrl) {
+    throw new Error('No stream URL found');
+  }
+
+  const finalUrl = await resolveTranscodingUrl(streamApiUrl);
+  setCachedStreamUrl(trackId, finalUrl);
+  
+  return finalUrl;
+}
+
+/**
+ * Получение прямой ссылки на MP3 (с кэшированием)
  */
 export async function getStreamUrl(trackId: number): Promise<string> {
+  // Проверяем кэш
+  const cached = getCachedStreamUrl(trackId);
+  if (cached) return cached;
+
   try {
     const track = await getTrack(trackId);
     
@@ -199,7 +280,6 @@ export async function getStreamUrl(trackId: number): Promise<string> {
       t => t.format.protocol === 'progressive'
     )?.url;
 
-    // Если нет progressive, берем первый доступный
     if (!streamApiUrl && track.media.transcodings.length > 0) {
       streamApiUrl = track.media.transcodings[0].url;
     }
@@ -208,18 +288,10 @@ export async function getStreamUrl(trackId: number): Promise<string> {
       throw new Error('No stream URL found in transcodings');
     }
 
-    // Получаем финальную ссылку
-    const response = await withRetry(() =>
-      axios.get(`${streamApiUrl}?client_id=${SOUNDCLOUD_CLIENT_ID}`, {
-        timeout: 15000,
-      })
-    );
+    const finalUrl = await resolveTranscodingUrl(streamApiUrl);
+    setCachedStreamUrl(trackId, finalUrl);
     
-    if (response.data && response.data.url) {
-      return response.data.url;
-    }
-
-    throw new Error('Failed to resolve direct stream URL');
+    return finalUrl;
   } catch (error) {
     console.error('Error getting stream URL:', error instanceof Error ? error.message : error);
     throw new Error('Failed to get stream URL');

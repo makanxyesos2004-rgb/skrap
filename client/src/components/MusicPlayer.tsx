@@ -1,7 +1,7 @@
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, 
   ChevronDown, ListMusic, Repeat, Shuffle, Share2, MoreHorizontal,
-  Loader2
+  Loader2, ThumbsDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -57,6 +57,7 @@ export default function MusicPlayer() {
   });
 
   const isLiked = preference === "like";
+  const isDisliked = preference === "dislike";
 
   const handleLike = async () => {
     if (!currentTrack) return;
@@ -89,6 +90,41 @@ export default function MusicPlayer() {
         toast.success("Добавлено в избранное");
       }
     } catch (error) {
+      toast.error("Ошибка обновления");
+    }
+  };
+
+  const handleDislike = async () => {
+    if (!currentTrack) return;
+
+    if (!isAuthenticated) {
+      toast.error("Войдите, чтобы улучшать рекомендации");
+      return;
+    }
+
+    try {
+      if (isDisliked) {
+        await removePreferenceMutation.mutateAsync({
+          soundcloudId: currentTrack.id.toString(),
+        });
+        toast.success("Убрано из «Не нравится»");
+      } else {
+        await setPreferenceMutation.mutateAsync({
+          soundcloudId: currentTrack.id.toString(),
+          trackData: {
+            title: currentTrack.title,
+            artist: currentTrack.user.username,
+            artworkUrl: currentTrack.artwork_url,
+            duration: currentTrack.duration,
+            streamUrl: currentTrack.stream_url,
+            permalinkUrl: currentTrack.permalink_url,
+            genre: currentTrack.genre,
+          },
+          preference: "dislike",
+        });
+        toast.success("Пометили как «Не нравится»");
+      }
+    } catch {
       toast.error("Ошибка обновления");
     }
   };
@@ -165,6 +201,7 @@ export default function MusicPlayer() {
               isPlaying={isPlaying}
               isLoading={isLoading}
               isLiked={isLiked}
+              isDisliked={isDisliked}
               currentTime={currentTime}
               duration={duration}
               volume={volume}
@@ -174,6 +211,7 @@ export default function MusicPlayer() {
               previousTrack={previousTrack}
               nextTrack={nextTrack}
               handleLike={handleLike}
+              handleDislike={handleDislike}
               handleSeek={handleSeek}
               handleVolumeChange={handleVolumeChange}
               onClose={() => setIsExpanded(false)}
@@ -238,7 +276,7 @@ export default function MusicPlayer() {
         <div className="flex items-center gap-3 w-[280px] flex-shrink-0">
           <div className="w-14 h-14 rounded-md bg-secondary flex-shrink-0 overflow-hidden">
             {artworkSmall ? (
-              <img src={artworkSmall} alt="" className="w-full h-full object-cover" />
+              <img src={artworkSmall} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <Play className="w-6 h-6 text-muted-foreground" />
@@ -259,6 +297,19 @@ export default function MusicPlayer() {
               className={cn(
                 "w-4 h-4",
                 isLiked && "fill-primary text-primary"
+              )}
+            />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 flex-shrink-0"
+            onClick={handleDislike}
+          >
+            <ThumbsDown
+              className={cn(
+                "w-4 h-4",
+                isDisliked && "text-primary scale-110"
               )}
             />
           </Button>
@@ -367,6 +418,7 @@ interface FullPlayerProps {
   isPlaying: boolean;
   isLoading: boolean;
   isLiked: boolean;
+  isDisliked: boolean;
   currentTime: number;
   duration: number;
   volume: number;
@@ -376,6 +428,7 @@ interface FullPlayerProps {
   previousTrack: () => void;
   nextTrack: () => void;
   handleLike: () => void;
+  handleDislike: () => void;
   handleSeek: (value: number[]) => void;
   handleVolumeChange: (value: number[]) => void;
   onClose: () => void;
@@ -387,6 +440,7 @@ function FullPlayer({
   isPlaying,
   isLoading,
   isLiked,
+  isDisliked,
   currentTime,
   duration,
   queue,
@@ -395,6 +449,7 @@ function FullPlayer({
   previousTrack,
   nextTrack,
   handleLike,
+  handleDislike,
   handleSeek,
   onClose,
 }: FullPlayerProps) {
@@ -426,6 +481,8 @@ function FullPlayer({
               src={artworkUrl} 
               alt={currentTrack.title} 
               className="w-full h-full object-cover"
+              loading="eager"
+              decoding="async"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
@@ -453,6 +510,19 @@ function FullPlayer({
               className={cn(
                 "w-6 h-6 transition-all",
                 isLiked && "fill-primary text-primary scale-110"
+              )}
+            />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-12 w-12 flex-shrink-0"
+            onClick={handleDislike}
+          >
+            <ThumbsDown
+              className={cn(
+                "w-6 h-6 transition-all",
+                isDisliked && "text-primary scale-110"
               )}
             />
           </Button>

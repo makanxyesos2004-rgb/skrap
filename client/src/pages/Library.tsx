@@ -9,11 +9,18 @@ import TrackCard from "@/components/TrackCard";
 import PlaylistCard from "@/components/PlaylistCard";
 import { Music2, ListMusic, Heart, Clock, LogIn } from "lucide-react";
 import { Track } from "@/contexts/MusicPlayerContext";
+import { formatDistanceToNow } from "date-fns";
+import { ru } from "date-fns/locale";
 
 export default function Library() {
   const { isAuthenticated, loading } = useAuth();
 
   const { data: likedTracks, isLoading: likedLoading } = trpc.preferences.getLikedTracks.useQuery(
+    { limit: 100 },
+    { enabled: isAuthenticated }
+  );
+
+  const { data: history, isLoading: historyLoading } = trpc.history.get.useQuery(
     { limit: 100 },
     { enabled: isAuthenticated }
   );
@@ -33,6 +40,19 @@ export default function Library() {
     permalink_url: track.permalinkUrl ?? '',
     genre: track.genre ?? null,
     created_at: track.createdAt.toISOString(),
+  })) ?? [];
+
+  const historyTracks: Track[] = history?.map((h) => ({
+    id: parseInt(h.track.soundcloudId),
+    title: h.track.title,
+    user: { id: 0, username: h.track.artist, avatar_url: null },
+    artwork_url: h.track.artworkUrl ?? null,
+    duration: h.track.duration,
+    permalink_url: h.track.permalinkUrl ?? '',
+    genre: h.track.genre ?? null,
+    created_at: h.track.createdAt.toISOString(),
+    stream_url: h.track.streamUrl ?? undefined,
+    soundcloudId: h.track.soundcloudId,
   })) ?? [];
 
   if (loading) {
@@ -81,7 +101,7 @@ export default function Library() {
 
         <div className="container py-4">
           <Tabs defaultValue="liked" className="w-full">
-            <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex h-auto p-1 bg-secondary rounded-lg mb-6">
+            <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:inline-flex h-auto p-1 bg-secondary rounded-lg mb-6">
               <TabsTrigger 
                 value="liked" 
                 className="flex items-center gap-2 px-4 py-2.5 data-[state=active]:bg-background rounded-md"
@@ -91,6 +111,18 @@ export default function Library() {
                 {likedTracks && likedTracks.length > 0 && (
                   <span className="ml-1 text-xs text-muted-foreground">
                     {likedTracks.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="history"
+                className="flex items-center gap-2 px-4 py-2.5 data-[state=active]:bg-background rounded-md"
+              >
+                <Clock className="w-4 h-4" />
+                <span>История</span>
+                {history && history.length > 0 && (
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    {history.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -151,6 +183,53 @@ export default function Library() {
               )}
             </TabsContent>
 
+            {/* History */}
+            <TabsContent value="history" className="mt-0">
+              {historyLoading ? (
+                <HistoryLoadingSkeleton />
+              ) : history && history.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="w-4 h-4" />
+                      {history.length} прослушиваний
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {history.map((h, index) => {
+                      const playedMs = h.playDuration ?? 0;
+                      const completion = h.track.duration > 0 ? playedMs / h.track.duration : 0;
+                      const completionPct = Math.max(0, Math.min(100, Math.round(completion * 100)));
+                      const playedAtText = formatDistanceToNow(h.playedAt, { addSuffix: true, locale: ru });
+                      const track = historyTracks[index]!;
+
+                      return (
+                        <div key={h.id} className="rounded-lg overflow-hidden">
+                          <TrackCard
+                            track={track}
+                            variant="list"
+                            playlistContext={historyTracks}
+                            indexInPlaylist={index}
+                          />
+                          <div className="px-3 pb-2 text-xs text-muted-foreground flex items-center justify-between">
+                            <span>{playedAtText}</span>
+                            <span className="tabular-nums">{completionPct}%</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <EmptyState 
+                  icon={Clock}
+                  title="История пуста"
+                  description="Послушайте несколько треков — и они появятся здесь"
+                />
+              )}
+            </TabsContent>
+
             {/* Playlists */}
             <TabsContent value="playlists" className="mt-0">
               {playlistsLoading ? (
@@ -186,6 +265,25 @@ function LoadingSkeleton() {
           <div className="aspect-square bg-secondary rounded-lg skeleton-shimmer" />
           <div className="h-4 w-3/4 bg-secondary rounded skeleton-shimmer" />
           <div className="h-3 w-1/2 bg-secondary rounded skeleton-shimmer" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HistoryLoadingSkeleton() {
+  return (
+    <div className="space-y-2">
+      {[...Array(10)].map((_, i) => (
+        <div key={i} className="p-3 rounded-lg bg-secondary/30">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-md bg-secondary skeleton-shimmer" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-2/3 bg-secondary rounded skeleton-shimmer" />
+              <div className="h-3 w-1/3 bg-secondary rounded skeleton-shimmer" />
+            </div>
+            <div className="h-3 w-10 bg-secondary rounded skeleton-shimmer" />
+          </div>
         </div>
       ))}
     </div>

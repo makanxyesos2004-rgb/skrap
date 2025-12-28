@@ -1,4 +1,4 @@
-import { Play, Pause, MoreHorizontal, PlusCircle, Heart } from "lucide-react";
+import { Play, Pause, MoreHorizontal, PlusCircle, Heart, ThumbsDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMusicPlayer, Track } from "@/contexts/MusicPlayerContext";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 interface TrackCardProps {
   track: Track;
@@ -23,8 +26,38 @@ export default function TrackCard({
   indexInPlaylist,
   variant = "default" 
 }: TrackCardProps) {
-  const { currentTrack, isPlaying, playTrack, playPlaylist, togglePlay, addToQueue } = useMusicPlayer();
+  const { currentTrack, isPlaying, playTrack, playPlaylist, togglePlay, addToQueue, preloadTracks } = useMusicPlayer();
   const [isHovered, setIsHovered] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const utils = trpc.useUtils();
+
+  const setPreferenceMutation = trpc.preferences.setPreference.useMutation({
+    onSuccess: () => {
+      utils.preferences.getPreference.invalidate();
+      utils.preferences.getLikedTracks.invalidate();
+    },
+  });
+
+  const setPreference = (preference: "like" | "dislike") => {
+    if (!isAuthenticated) {
+      toast.error("Войдите, чтобы улучшать рекомендации");
+      return;
+    }
+    setPreferenceMutation.mutate({
+      soundcloudId: track.id.toString(),
+      trackData: {
+        title: track.title,
+        artist: track.user.username,
+        artworkUrl: track.artwork_url,
+        duration: track.duration,
+        streamUrl: track.stream_url,
+        permalinkUrl: track.permalink_url,
+        genre: track.genre,
+      },
+      preference,
+    });
+    toast.success(preference === "like" ? "Добавлено в избранное" : "Помечено как «Не нравится»");
+  };
 
   const isCurrentTrack = currentTrack?.id === track.id;
   const isCurrentPlaying = isCurrentTrack && isPlaying;
@@ -64,11 +97,17 @@ export default function TrackCard({
           isCurrentTrack && "bg-secondary"
         )}
         onClick={handlePlayClick}
+        onMouseEnter={() => {
+          setIsHovered(true);
+          preloadTracks([track]);
+        }}
+        onMouseLeave={() => setIsHovered(false)}
+        onTouchStart={() => preloadTracks([track])}
       >
         {/* Artwork */}
         <div className="relative w-12 h-12 rounded-md overflow-hidden bg-secondary flex-shrink-0">
           {artworkUrl ? (
-            <img src={artworkUrl} alt="" className="w-full h-full object-cover" />
+            <img src={artworkUrl} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <Play className="w-4 h-4 text-muted-foreground" />
@@ -119,6 +158,12 @@ export default function TrackCard({
             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); addToQueue(track); }}>
               <PlusCircle className="mr-2 h-4 w-4" /> В очередь
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setPreference("like"); }}>
+              <Heart className="mr-2 h-4 w-4" /> В избранное
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setPreference("dislike"); }}>
+              <ThumbsDown className="mr-2 h-4 w-4" /> Не нравится
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -129,9 +174,13 @@ export default function TrackCard({
   return (
     <div 
       className="group cursor-pointer"
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        preloadTracks([track]);
+      }}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handlePlayClick}
+      onTouchStart={() => preloadTracks([track])}
     >
       {/* Artwork Container */}
       <div className="relative aspect-square rounded-lg overflow-hidden bg-secondary mb-3">
@@ -142,7 +191,9 @@ export default function TrackCard({
             className={cn(
               "w-full h-full object-cover transition-transform duration-300",
               (isHovered || isCurrentPlaying) && "scale-105"
-            )} 
+            )}
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-secondary">
@@ -197,6 +248,12 @@ export default function TrackCard({
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); addToQueue(track); }}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Добавить в очередь
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setPreference("like"); }}>
+                <Heart className="mr-2 h-4 w-4" /> В избранное
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setPreference("dislike"); }}>
+                <ThumbsDown className="mr-2 h-4 w-4" /> Не нравится
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

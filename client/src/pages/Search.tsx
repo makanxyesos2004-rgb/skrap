@@ -6,6 +6,7 @@ import MainLayout from "@/components/MainLayout";
 import MusicPlayer from "@/components/MusicPlayer";
 import { trpc } from "@/lib/trpc";
 import TrackCard from "@/components/TrackCard";
+import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
 
 const TRENDING_SEARCHES = [
   "Hip-hop", "Electronic", "Lo-fi", "Jazz", "Rock", "Indie", "Pop", "R&B"
@@ -15,11 +16,20 @@ export default function Search() {
   const [query, setQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const { preloadTracks } = useMusicPlayer();
 
   const { data: tracks, isLoading } = trpc.search.tracks.useQuery(
     { query: searchQuery, limit: 30 },
     { enabled: searchQuery.length > 0 }
   );
+  
+  // Предзагружаем первые треки сразу при появлении результатов
+  useEffect(() => {
+    if (tracks && tracks.length > 0) {
+      // Предзагружаем первые 5 треков для мгновенного воспроизведения
+      preloadTracks(tracks.slice(0, 5));
+    }
+  }, [tracks, preloadTracks]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

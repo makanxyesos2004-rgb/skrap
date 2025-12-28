@@ -78,6 +78,29 @@ export type ListeningHistory = typeof listeningHistory.$inferSelect;
 export type InsertListeningHistory = typeof listeningHistory.$inferInsert;
 
 /**
+ * Raw player events for analytics/debugging (buffering, errors, skips, etc.)
+ */
+export const playerEvents = mysqlTable("player_events", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
+  sessionId: varchar("sessionId", { length: 64 }),
+  event: varchar("event", { length: 64 }).notNull(),
+  trackSoundcloudId: varchar("trackSoundcloudId", { length: 255 }),
+  trackTitle: text("trackTitle"),
+  page: varchar("page", { length: 64 }),
+  meta: text("meta"), // JSON string
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("pe_user_id_idx").on(table.userId),
+  eventIdx: index("pe_event_idx").on(table.event),
+  createdAtIdx: index("pe_created_at_idx").on(table.createdAt),
+  trackSoundcloudIdIdx: index("pe_track_soundcloud_id_idx").on(table.trackSoundcloudId),
+}));
+
+export type PlayerEvent = typeof playerEvents.$inferSelect;
+export type InsertPlayerEvent = typeof playerEvents.$inferInsert;
+
+/**
  * User-created playlists
  */
 export const playlists = mysqlTable("playlists", {

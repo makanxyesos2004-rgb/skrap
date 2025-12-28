@@ -1,11 +1,12 @@
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise"; 
+import mysql from "mysql2";
 import { 
   InsertUser, users, 
   tracks, Track, InsertTrack,
   trackPreferences, TrackPreference, InsertTrackPreference,
   listeningHistory, ListeningHistory, InsertListeningHistory,
+  playerEvents, InsertPlayerEvent,
   playlists, Playlist, InsertPlaylist,
   playlistTracks, PlaylistTrack, InsertPlaylistTrack
 } from "../drizzle/schema";
@@ -16,13 +17,14 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      const connection = await mysql.createConnection({
+      const pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
         // ИЗМЕНЕНИЕ: Ставим false. Это работает и с TiDB, и с локальным MySQL
-        ssl: { rejectUnauthorized: false } 
+        ssl: { rejectUnauthorized: false },
+        connectionLimit: 10,
       });
       
-      _db = drizzle(connection);
+      _db = drizzle(pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -215,6 +217,56 @@ export async function getUserLikedTracks(userId: number, limit: number = 50): Pr
   return result.map((r) => r.track);
 }
 
+export type UserTrackPreferenceDetailed = {
+  track: Track;
+  preference: "like" | "dislike";
+  createdAt: Date;
+};
+
+export async function getUserTrackPreferencesDetailed(
+  userId: number,
+  limit: number = 200
+): Promise<UserTrackPreferenceDetailed[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .select({
+      track: tracks,
+      preference: trackPreferences.preference,
+      createdAt: trackPreferences.createdAt,
+    })
+    .from(trackPreferences)
+    .innerJoin(tracks, eq(trackPreferences.trackId, tracks.id))
+    .where(eq(trackPreferences.userId, userId))
+    .orderBy(desc(trackPreferences.createdAt))
+    .limit(limit);
+
+  return result.map(r => ({
+    track: r.track,
+    preference: r.preference,
+    createdAt: r.createdAt,
+  }));
+}
+
+export async function getUserDislikedSoundcloudIds(
+  userId: number,
+  limit: number = 500
+): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .select({ soundcloudId: tracks.soundcloudId })
+    .from(trackPreferences)
+    .innerJoin(tracks, eq(trackPreferences.trackId, tracks.id))
+    .where(and(eq(trackPreferences.userId, userId), eq(trackPreferences.preference, "dislike")))
+    .orderBy(desc(trackPreferences.createdAt))
+    .limit(limit);
+
+  return result.map(r => r.soundcloudId);
+}
+
 // ============ Listening History Functions ============
 
 export async function addListeningHistory(history: InsertListeningHistory): Promise<void> {
@@ -222,6 +274,20 @@ export async function addListeningHistory(history: InsertListeningHistory): Prom
   if (!db) throw new Error("Database not available");
 
   await db.insert(listeningHistory).values(history);
+}
+
+// ============ Player Events (Analytics) ============
+
+export async function addPlayerEvent(event: InsertPlayerEvent): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.insert(playerEvents).values(event);
+  } catch (error) {
+    // Analytics must never break the app (e.g. when migrations weren't applied yet)
+    console.warn("[Database] Failed to insert player event:", error);
+  }
 }
 
 export async function getUserListeningHistory(
