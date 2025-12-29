@@ -334,34 +334,34 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      
-      preloadingSet.add(track.id);
-      
-      try {
+        
+        preloadingSet.add(track.id);
+        
+        try {
         // Используем transcodings для быстрого получения URL
         const url = await getStreamUrl(track.id, track.media?.transcodings);
         
         if (!url) return;
-
+          
         // На медленной сети не качаем аудио заранее — только кэшируем URL
         if (!shouldPreloadAudioData) {
           return;
         }
 
         if (!audioPreloadCache.has(track.id)) {
-          const audio = new Audio();
-          audio.preload = "auto";
-          audio.src = url;
-          audioPreloadCache.set(track.id, audio);
-          
+            const audio = new Audio();
+            audio.preload = "auto";
+            audio.src = url;
+            audioPreloadCache.set(track.id, audio);
+            
           // Удаляем из кэша через 3 минуты
-          setTimeout(() => {
-            audioPreloadCache.delete(track.id);
+            setTimeout(() => {
+              audioPreloadCache.delete(track.id);
           }, 3 * 60 * 1000);
+          }
+        } finally {
+          preloadingSet.delete(track.id);
         }
-      } finally {
-        preloadingSet.delete(track.id);
-      }
     });
   }, [getStreamUrl]);
 
@@ -434,14 +434,11 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     };
     
     const handleError = () => {
-      console.error("Audio error, skipping");
+      console.error("Audio error");
       setIsLoading(false);
+      setIsPlaying(false);
       finalizePlaybackRef.current("error");
-      if (queueRef.current.length > 0) {
-        const [next, ...rest] = queueRef.current;
-        setQueue(rest);
-        _playInternal(next, "error_skip");
-      }
+      // НЕ пропускаем трек автоматически - пользователь сам решит что делать
     };
 
     const handlePause = () => {
@@ -498,9 +495,9 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     // Закрываем предыдущую сессию (если трек переключили)
     finalizePlayback(`switch:${startReason}`);
 
-    setCurrentTrack(track);
+      setCurrentTrack(track);
     setIsLoading(true);
-    setIsPlaying(false);
+      setIsPlaying(false);
 
     // Создаем новую сессию
     playbackRef.current = {
@@ -511,7 +508,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       maxPositionSec: 0,
     };
     trackEvent("play_request", track, { reason: startReason });
-    
+
     // Проверяем предзагруженный Audio элемент - МГНОВЕННОЕ воспроизведение
     const preloadedAudio = audioPreloadCache.get(track.id);
     if (preloadedAudio && preloadedAudio.src) {
@@ -539,8 +536,8 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     }
     
     // Проверяем кэш URL
-    let streamUrl = streamUrlCache.get(track.id) || track.stream_url;
-    
+      let streamUrl = streamUrlCache.get(track.id) || track.stream_url;
+      
     // Если URL есть - сразу играем, не ждём
     if (streamUrl) {
       if (token !== playTokenRef.current) return;
@@ -565,7 +562,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     try {
       streamUrl = await getStreamUrl(track.id, track.media?.transcodings) || undefined;
       if (token !== playTokenRef.current) return;
-      
+
       if (streamUrl) {
         streamUrlCache.set(track.id, streamUrl);
         persistStreamUrl(track.id, streamUrl);
@@ -595,13 +592,10 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Play error:", error);
       setIsLoading(false);
+      setIsPlaying(false);
       trackEvent("error", track, { message: (error as Error)?.message });
-      
-      if (queueRef.current.length > 0) {
-        const [next, ...rest] = queueRef.current;
-        setQueue(rest);
-        _playInternal(next, "error_skip");
-      }
+      toast.error(`Не удалось воспроизвести: ${track.title}`);
+      // НЕ пропускаем трек автоматически - пользователь сам решит что делать
     }
   };
 

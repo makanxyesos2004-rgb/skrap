@@ -1,7 +1,7 @@
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, 
   ChevronDown, ListMusic, Repeat, Shuffle, Share2, MoreHorizontal,
-  Loader2, ThumbsDown
+  Loader2, ThumbsDown, Maximize2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -16,6 +16,8 @@ import {
   DrawerContent,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import FullscreenPlayer from "./FullscreenPlayer";
+import { AnimatePresence } from "framer-motion";
 
 export default function MusicPlayer() {
   const {
@@ -27,6 +29,7 @@ export default function MusicPlayer() {
     duration,
     queue,
     togglePlay,
+    play,
     seek,
     setVolume,
     nextTrack,
@@ -36,6 +39,7 @@ export default function MusicPlayer() {
   const { isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const { data: preference } = trpc.preferences.getPreference.useQuery(
     { soundcloudId: currentTrack?.id.toString() || "" },
@@ -274,15 +278,19 @@ export default function MusicPlayer() {
       <div className="h-20 px-4 flex items-center gap-4">
         {/* Track Info */}
         <div className="flex items-center gap-3 w-[280px] flex-shrink-0">
-          <div className="w-14 h-14 rounded-md bg-secondary flex-shrink-0 overflow-hidden">
+          <button 
+            className="w-14 h-14 rounded-md bg-secondary flex-shrink-0 overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all group"
+            onClick={() => setIsFullscreen(true)}
+            title="Открыть полноэкранный режим"
+          >
             {artworkSmall ? (
-              <img src={artworkSmall} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+              <img src={artworkSmall} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" decoding="async" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <Play className="w-6 h-6 text-muted-foreground" />
               </div>
             )}
-          </div>
+          </button>
           <div className="min-w-0 flex-1">
             <p className="font-medium text-sm truncate">{currentTrack.title}</p>
             <p className="text-xs text-muted-foreground truncate">{currentTrack.user.username}</p>
@@ -371,8 +379,8 @@ export default function MusicPlayer() {
           </div>
         </div>
 
-        {/* Right Controls - Volume */}
-        <div className="flex items-center gap-2 w-[200px] justify-end">
+        {/* Right Controls - Volume & Fullscreen */}
+        <div className="flex items-center gap-2 w-[240px] justify-end">
           {queue.length > 0 && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground mr-2">
               <ListMusic className="w-4 h-4" />
@@ -398,6 +406,15 @@ export default function MusicPlayer() {
             onValueChange={handleVolumeChange}
             className="w-24"
           />
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground ml-2"
+            onClick={() => setIsFullscreen(true)}
+            title="Полноэкранный режим (с YouTube клипом)"
+          >
+            <Maximize2 className="w-4 h-4" />
+          </Button>
         </div>
       </div>
     </div>
@@ -407,6 +424,32 @@ export default function MusicPlayer() {
     <>
       {MiniPlayer}
       {DesktopPlayer}
+      
+      {/* Fullscreen Player for Desktop */}
+      <AnimatePresence>
+        {isFullscreen && currentTrack && (
+          <FullscreenPlayer
+            currentTrack={currentTrack}
+            isPlaying={isPlaying}
+            isLoading={isLoading}
+            isLiked={isLiked}
+            isDisliked={isDisliked}
+            currentTime={currentTime}
+            duration={duration}
+            volume={volume}
+            queue={queue}
+            onClose={() => setIsFullscreen(false)}
+            togglePlay={togglePlay}
+            play={play}
+            previousTrack={previousTrack}
+            nextTrack={nextTrack}
+            handleLike={handleLike}
+            handleDislike={handleDislike}
+            seek={seek}
+            setVolume={setVolume}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }
