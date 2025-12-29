@@ -5,6 +5,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import * as soundcloud from "./soundcloud";
 import * as db from "./db";
+import * as youtube from "./youtube";
 import { generateHomeFeed, getTrackBasedRecommendations } from "./recommendations";
 import { sdk } from "./_core/sdk";
 import { nanoid } from "nanoid";
@@ -373,10 +374,13 @@ export const appRouter = router({
   // ИСПРАВЛЕНИЕ 2: Используем новую логику рекомендаций
   recommendations: router({
     personalized: protectedProcedure
-      .input(z.object({ limit: z.number().min(1).max(50).default(30).optional() }))
-      .query(async ({ ctx }) => {
+      .input(z.object({ 
+        limit: z.number().min(1).max(50).default(30).optional(),
+        forceRefresh: z.boolean().default(false).optional()
+      }))
+      .query(async ({ ctx, input }) => {
         // Теперь здесь возвращаются плейлисты
-        return await generateHomeFeed(ctx.user.id);
+        return await generateHomeFeed(ctx.user.id, input.forceRefresh ?? false);
       }),
 
     forTrack: publicProcedure
@@ -386,6 +390,18 @@ export const appRouter = router({
       }))
       .query(async ({ input }) => {
         return await getTrackBasedRecommendations(input.trackId, input.limit);
+      }),
+  }),
+
+  youtube: router({
+    searchVideo: publicProcedure
+      .input(z.object({
+        trackTitle: z.string(),
+        artist: z.string(),
+      }))
+      .query(async ({ input }) => {
+        const videoId = await youtube.searchYouTubeVideo(input.trackTitle, input.artist);
+        return videoId;
       }),
   }),
 });

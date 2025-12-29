@@ -5,18 +5,23 @@ import MusicPlayer from "@/components/MusicPlayer";
 import TrackCard from "@/components/TrackCard";
 import { trpc } from "@/lib/trpc";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
-import { Music2, Sparkles, PlayCircle, ArrowRight, ChevronRight } from "lucide-react";
+import { Music2, Sparkles, PlayCircle, ArrowRight, ChevronRight, RefreshCw } from "lucide-react";
 import { Link } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
   const { preloadTracks } = useMusicPlayer();
 
+  const [refreshKey, setRefreshKey] = useState(0);
   const { data: playlists, isLoading: recsLoading } = trpc.recommendations.personalized.useQuery(
-    {}, 
+    { forceRefresh: refreshKey > 0 }, 
     { enabled: isAuthenticated }
   );
+
+  const handleRefresh = () => {
+    setRefreshKey(prev => prev + 1);
+  };
 
   // Предзагружаем первые треки из каждого плейлиста при получении данных
   useEffect(() => {
@@ -43,8 +48,20 @@ export default function Home() {
           <>
             {/* Header with Greeting */}
             <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/50">
-              <div className="container py-4 md:py-6">
+              <div className="container py-4 md:py-6 flex items-center justify-between">
                 <h1 className="text-2xl md:text-3xl font-semibold">{getGreeting()}</h1>
+                {playlists && playlists.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRefresh}
+                    disabled={recsLoading}
+                    className="gap-2"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${recsLoading ? 'animate-spin' : ''}`} />
+                    Обновить
+                  </Button>
+                )}
               </div>
             </header>
 
